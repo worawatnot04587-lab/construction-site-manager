@@ -1,59 +1,48 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
-# ตั้งค่า App
-st.set_page_config(page_title="ConstruFlow", layout="wide")
-
-# สร้างข้อมูลจำลอง (Database)
+# 1. ตั้งค่าข้อมูลเริ่มต้น
 if 'df' not in st.session_state:
     st.session_state.df = pd.DataFrame({
-        'Task': ['Foundation', 'Column Casting', 'Wiring', 'Painting'],
-        'PIC': ['Eng_A', 'Eng_B', 'Eng_A', 'Eng_C'],
-        'Progress': [80, 40, 0, 0],
-        'QC': ['Pass', 'Pending', 'Pending', 'Pending']
+        "Task": ["Foundation", "Column Casting", "Wiring", "Painting"],
+        "PIC": ["Eng_A", "Eng_B", "Eng_A", "Eng_C"],
+        "Progress (%)": [80, 40, 0, 0],
+        "Status": ["On Track", "Delay", "Pending", "Pending"]
     })
 
-# ระบบ Login (Access Control)
-st.sidebar.title("Login System")
-user = st.sidebar.selectbox("Select User", ["Manager", "Eng_A", "Eng_B", "Eng_C"])
-st.sidebar.info(f"Logged in as: {user}")
+st.title("🏗️ Construction Management System")
 
-st.title(f"Construction Management System - Welcome {user}")
+# 2. ตารางแสดงสถานะ (ปรับให้ Status เป็น Dropdown)
+st.subheader("📋 Task Overview")
+edited_df = st.data_editor(
+    st.session_state.df, 
+    use_container_width=True,
+    column_config={
+        "Status": st.column_config.SelectboxColumn(
+            "Status",
+            options=["On Track", "Delay", "Pending", "Pass"],
+            required=True,
+        )
+    }
+)
+st.session_state.df = edited_df
 
-# กรองงานตาม User
-if user == "Manager":
-    df_view = st.session_state.df
-else:
-    df_view = st.session_state.df[st.session_state.df['PIC'] == user]
+# 3. ส่วนฟอร์มอัปเดตงานและอัปโหลดรูป
+st.divider()
+st.subheader("✏️ Update Proof of Work")
 
-# หน้าแสดงงานและแก้ไขงาน
-st.subheader("📋 Task List & Progress Update")
-edited_df = st.data_editor(df_view, use_container_width=True)
-
-# อัปเดตข้อมูลกลับเข้า Session State
-if st.button("Save Changes"):
-    if user == "Manager":
-        st.session_state.df = edited_df
-    else:
-        st.session_state.df.update(edited_df)
-    st.success("Data Saved!")
-
-# ระบบ Dashboard & Alert (เฉพาะ Manager)
-if user == "Manager":
-    st.divider()
-    st.subheader("📊 Project Analytics")
-    
-    st.session_state.df['Status'] = st.session_state.df['Progress'].apply(lambda x: "Delay" if x < 50 else "On Track")
-    
+with st.form("update_form"):
     col1, col2 = st.columns(2)
     with col1:
-        fig = px.bar(st.session_state.df, x='Task', y='Progress', color='Status', title="Project Progress")
-        st.plotly_chart(fig)
+        task_select = st.selectbox("Select Task to Update", st.session_state.df["Task"])
     with col2:
-        st.subheader("⚠️ Alerts")
-        delay_tasks = st.session_state.df[st.session_state.df['Status'] == 'Delay']
-        if not delay_tasks.empty:
-            st.warning(f"Tasks behind schedule: {delay_tasks['Task'].tolist()}")
+        image_file = st.file_uploader("Upload Image Proof (JPG/PNG)", type=['png', 'jpg', 'jpeg'])
+    
+    submit_button = st.form_submit_button("Confirm Update")
+
+    if submit_button:
+        if image_file is not None:
+            st.success(f"Successfully updated proof for: {task_select}")
+            st.image(image_file, caption=f"Proof for {task_select}", width=300)
         else:
-            st.success("All tasks on schedule.")
+            st.warning("Please upload an image.")
