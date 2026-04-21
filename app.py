@@ -6,7 +6,17 @@ from datetime import datetime, timedelta
 # 1. ตั้งค่าหน้าจอ
 st.set_page_config(layout="wide", page_title="Construction Management System")
 
-# 2. Initialize Session State (ข้อมูลทั้งหมด)
+# ฟังก์ชันกำหนดสี Status
+def highlight_status(val):
+    colors = {
+        'เสร็จสิ้น': 'background-color: #d4edda; color: #155724',        # เขียว
+        'กำลังดำเนินการ': 'background-color: #cce5ff; color: #004085',  # ฟ้า
+        'ล่าช้า': 'background-color: #f8d7da; color: #721c24',         # แดง
+        'รอเริ่มงาน': 'background-color: #e2e3e5; color: #383d41'       # เทา
+    }
+    return colors.get(val, '')
+
+# 2. เริ่มต้น Session State
 if 'passwords' not in st.session_state:
     st.session_state.passwords = {"Manager": "1234", "Eng_A": "5555", "Eng_B": "9999"}
 
@@ -29,11 +39,11 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.current_role = None
 
-# 3. Sidebar: ระบบ Login และจัดการบัญชี
+# 3. Sidebar: ระบบ Login
 with st.sidebar:
     st.title("🔐 ระบบจัดการ")
     if not st.session_state.authenticated:
-        role = st.selectbox("เลือกบทบาทผู้ใช้งาน", list(st.session_state.passwords.keys()))
+        role = st.selectbox("เลือกบทบาท", list(st.session_state.passwords.keys()))
         password = st.text_input("รหัสผ่าน", type="password")
         if st.button("เข้าสู่ระบบ"):
             if st.session_state.passwords.get(role) == password:
@@ -44,22 +54,15 @@ with st.sidebar:
                 st.error("รหัสผ่านไม่ถูกต้อง")
     else:
         st.success(f"ล็อกอินเป็น: **{st.session_state.current_role}**")
-        if st.session_state.current_role == "Manager":
-            with st.expander("➕ เพิ่มวิศวกร"):
-                new_user = st.text_input("ชื่อ (ID)")
-                new_pass = st.text_input("รหัสผ่าน", type="password")
-                if st.button("บันทึก"):
-                    st.session_state.passwords[new_user] = new_pass
-                    st.rerun()
         if st.button("ออกจากระบบ"):
             st.session_state.authenticated = False
             st.session_state.current_role = None
             st.rerun()
 
-# 4. หน้าหลัก (Main Page)
+# 4. Main Page
 st.title("🏗️ ระบบบริหารจัดการงานก่อสร้าง")
 
-# Dashboard Metrics
+# แสดง Dashboard
 col1, col2, col3 = st.columns(3)
 col1.metric("จำนวนงานทั้งหมด", len(st.session_state.data))
 col2.metric("ความคืบหน้าเฉลี่ย", f"{int(st.session_state.data['Progress (%)'].mean())}%")
@@ -70,74 +73,57 @@ fig = px.timeline(st.session_state.data, x_start="Start", x_end="End", y="Task",
 fig.update_yaxes(autorange="reversed")
 st.plotly_chart(fig, use_container_width=True)
 
-# ตารางแก้ไขข้อมูล (Manager เท่านั้น)
+# ส่วนแสดงตารางพร้อมสี (ใช้ style.map)
 st.subheader("📋 ตารางข้อมูลงานทั้งหมด")
-if st.session_state.current_role == "Manager":
-    st.session_state.data = st.data_editor(st.session_state.data, use_container_width=True, num_rows="dynamic")
-else:
-    st.dataframe(st.session_state.data, use_container_width=True)
+st.dataframe(st.session_state.data.style.map(highlight_status, subset=['Status']), use_container_width=True)
 
-# 5. ส่วนอัปเดตงาน (สำหรับทุกคนที่ Login)
+# ส่วน Manager แก้ไขข้อมูล
+if st.session_state.authenticated and st.session_state.current_role == "Manager":
+    with st.expander("🛠️ เมนูผู้จัดการ (แก้ไขตาราง)"):
+        st.session_state.data = st.data_editor(st.session_state.data, use_container_width=True, num_rows="dynamic")
+
+# 5. ส่วนอัปเดตงาน
 st.divider()
-st.subheader("✏️ อัปเดตสถานะงานประจำวัน")
+st.subheader("✏️ อัปเดตงานประจำวัน")
 
 if not st.session_state.authenticated:
-    st.info("👈 โปรด Login เพื่ออัปเดตสถานะงานของคุณ")
+    st.info("👈 โปรด Login เพื่ออัปเดตงาน")
 else:
     user = st.session_state.current_role
-    # เลือกงาน (ถ้าเป็น Manager เห็นหมด, วิศวกรเห็นของตัวเอง)
-    if user == "Manager":
-        task_options = st.session_state.data['Task'].tolist()
-    else:
-        task_options = st.session_state.data[st.session_state.data['PIC'] == user]['Task'].tolist()
+    task_options = st.session_state.data['Task'].tolist() if user == "Manager" else st.session_state.data[st.session_state.data['PIC'] == user]['Task'].tolist()
 
     if task_options:
         with st.form("update_form"):
-            task_select = st.selectbox("เลือกงานที่ต้องการอัปเดต", task_options)
-            
-            # ดึงค่าปัจจุบันมาเป็น Default ใน Slider
-            current_idx = st.session_state.data[st.session_state.data['Task'] == task_select].index[0]
-            current_val = int(st.session_state.data.at[current_idx, 'Progress (%)'])
-            
+            task_select = st.selectbox("เลือกงาน", task_options)
+            current_val = int(st.session_state.data.loc[st.session_state.data['Task'] == task_select, 'Progress (%)'].values[0])
             new_progress = st.slider("ความคืบหน้า (%)", 0, 100, current_val)
             new_status = st.selectbox("สถานะปัจจุบัน", ["กำลังดำเนินการ", "ล่าช้า", "เสร็จสิ้น"])
             uploaded_file = st.file_uploader("อัปโหลดรูปภาพ", type=['jpg', 'png', 'jpeg'])
             
-            if st.form_submit_button("บันทึกรายงานความคืบหน้า"):
-                # อัปเดตตารางหลัก
-                st.session_state.data.at[current_idx, 'Progress (%)'] = new_progress
-                st.session_state.data.at[current_idx, 'Status'] = new_status
+            if st.form_submit_button("บันทึกรายงาน"):
+                idx = st.session_state.data[st.session_state.data['Task'] == task_select].index[0]
+                st.session_state.data.at[idx, 'Progress (%)'] = new_progress
+                st.session_state.data.at[idx, 'Status'] = new_status
                 if uploaded_file:
-                    st.session_state.data.at[current_idx, 'Photo'] = uploaded_file.name
+                    st.session_state.data.at[idx, 'Photo'] = uploaded_file.name
                 
                 # บันทึก History
-                new_log = pd.DataFrame({
-                    "Date": [datetime.now().strftime("%Y-%m-%d %H:%M")],
-                    "Task": [task_select],
-                    "PIC": [user],
-                    "Progress (%)": [new_progress],
-                    "Status": [new_status]
-                })
+                new_log = pd.DataFrame({"Date": [datetime.now().strftime("%Y-%m-%d %H:%M")], "Task": [task_select], "PIC": [user], "Progress (%)": [new_progress], "Status": [new_status]})
                 st.session_state.history = pd.concat([st.session_state.history, new_log], ignore_index=True)
-                st.success(f"บันทึกงาน '{task_select}' เรียบร้อย!")
+                st.success("บันทึกเรียบร้อย!")
                 st.rerun()
     else:
-        st.warning("คุณไม่มีงานที่รับผิดชอบในขณะนี้")
+        st.warning("คุณไม่มีงานที่รับผิดชอบ")
 
-# 6. แสดงประวัติการอัปเดตและรูปภาพ
+# 6. ประวัติและคลังภาพ
 st.divider()
-tab1, tab2 = st.tabs(["📅 ประวัติการอัปเดต (Logs)", "🖼️ คลังรูปภาพ"])
-
+tab1, tab2 = st.tabs(["📅 ประวัติการอัปเดต", "🖼️ คลังรูปภาพ"])
 with tab1:
-    if not st.session_state.history.empty:
-        st.dataframe(st.session_state.history.sort_values(by="Date", ascending=False), use_container_width=True)
-    else:
-        st.write("ยังไม่มีข้อมูลประวัติการอัปเดต")
-
+    st.dataframe(st.session_state.history.sort_values(by="Date", ascending=False), use_container_width=True)
 with tab2:
-    df_with_photos = st.session_state.data[st.session_state.data['Photo'].notna()]
-    if not df_with_photos.empty:
-        for _, row in df_with_photos.iterrows():
-            st.write(f"**งาน:** {row['Task']} | **อัปเดตโดย:** {row['PIC']} | **ไฟล์:** {row['Photo']}")
+    df_pics = st.session_state.data[st.session_state.data['Photo'].notna()]
+    if not df_pics.empty:
+        for _, row in df_pics.iterrows():
+            st.write(f"✅ **{row['Task']}** | ไฟล์: {row['Photo']}")
     else:
-        st.write("ยังไม่มีการอัปโหลดรูปภาพ")
+        st.write("ยังไม่มีรูปภาพ")
