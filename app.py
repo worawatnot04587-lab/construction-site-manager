@@ -125,4 +125,13 @@ else:
     else:
         grouped = df_with_photos.groupby('Task')
         for task_name, group_data in grouped:
-            with st.expander(f"📦
+            with st.expander(f"📦 หมวดงาน: {task_name}", expanded=True):
+                for _, row in group_data.iterrows():
+                    col_left, col_right = st.columns([1, 2])
+                    with col_left:
+                        st.image("https://via.placeholder.com/150", caption="ภาพถ่ายหน้างาน") 
+                    with col_right:
+                        st.write(f"**สถานะ:** {row['Status']}")
+                        st.write(f"**ผู้รับผิดชอบ (PIC):** 👤 {row['PIC']}")
+                        st.success(f"ไฟล์ที่แนบ: {row['Photo']}")
+                st.divider()
