@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 # 1. ตั้งค่าหน้าจอ
 st.set_page_config(layout="wide", page_title="Construction Management System")
 
-# 2. ข้อมูลเริ่มต้น (ตั้งค่าวันที่ตามปัจจุบัน)
+# 2. ข้อมูลเริ่มต้น
 today = datetime.today()
 
 if 'data' not in st.session_state:
@@ -15,7 +15,6 @@ if 'data' not in st.session_state:
         "PIC": ["Manager", "Eng_A", "Eng_B", "Eng_A"],
         "Status": ["เสร็จสิ้น", "กำลังดำเนินการ", "รอเริ่มงาน", "รอเริ่มงาน"],
         "Progress (%)": [100, 40, 0, 0],
-        # คำนวณวันที่ให้อิงจากวันนี้
         "Start": [today, today + timedelta(days=7), today + timedelta(days=14), today + timedelta(days=21)],
         "End": [today + timedelta(days=6), today + timedelta(days=13), today + timedelta(days=20), today + timedelta(days=27)],
         "Photo": [None, None, None, None]
@@ -27,10 +26,8 @@ with st.sidebar:
     user = st.selectbox("เลือกบทบาทผู้ใช้งาน", ["Manager", "Eng_A", "Eng_B"])
     st.write("---")
     st.info(f"ผู้ใช้งานปัจจุบัน: **{user}**")
-    st.caption("ระบบบริหารจัดการโครงการก่อสร้าง")
 
 st.title(f"🏗️ ระบบบริหารจัดการงานก่อสร้าง")
-st.subheader(f"สวัสดีคุณ, {user}")
 
 # 4. ส่วนแสดงผล Metrics
 col1, col2, col3 = st.columns(3)
@@ -44,9 +41,11 @@ fig = px.timeline(st.session_state.data, x_start="Start", x_end="End", y="Task",
 fig.update_yaxes(autorange="reversed")
 st.plotly_chart(fig, use_container_width=True)
 
-# 6. ตารางจัดการงาน
-st.subheader("📋 ตารางแก้ไขข้อมูลงาน")
-edited_df = st.data_editor(st.session_state.data, use_container_width=True)
+# 6. ตารางจัดการงาน (จุดที่ปรับแก้: เพิ่ม num_rows="dynamic")
+st.subheader("📋 ตารางแก้ไขและเพิ่มข้อมูลงาน")
+# เพิ่ม num_rows="dynamic" เพื่อให้มีปุ่มบวก (+) สำหรับเพิ่มแถวใหม่ได้
+edited_df = st.data_editor(st.session_state.data, use_container_width=True, num_rows="dynamic")
+
 if st.button("💾 บันทึกข้อมูลทั้งหมด"):
     st.session_state.data = edited_df
     st.success("บันทึกข้อมูลเรียบร้อยแล้ว!")
@@ -75,10 +74,9 @@ if not my_tasks.empty:
 else:
     st.warning("คุณไม่มีงานที่รับผิดชอบในระบบ ณ ขณะนี้")
 
-# 8. แสดงรูปผลงาน (จัดกลุ่มตามหมวดงาน)
+# 8. แสดงรูปผลงาน
 st.subheader("🖼️ คลังรูปภาพผลงาน")
 df_with_photos = st.session_state.data[st.session_state.data['Photo'].notna()]
-
 if df_with_photos.empty:
     st.info("ยังไม่มีการอัปโหลดรูปภาพผลงานในขณะนี้")
 else:
