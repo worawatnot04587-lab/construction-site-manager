@@ -1,20 +1,23 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 1. ตั้งค่าหน้าจอ
 st.set_page_config(layout="wide", page_title="Construction Management System")
 
-# 2. ข้อมูลเริ่มต้น (Session State)
+# 2. ข้อมูลเริ่มต้น (ตั้งค่าวันที่ตามปัจจุบัน)
+today = datetime.today()
+
 if 'data' not in st.session_state:
     st.session_state.data = pd.DataFrame({
         "Task": ["งานฐานราก", "งานหล่อเสา", "งานระบบไฟฟ้า", "งานสี"],
         "PIC": ["Manager", "Eng_A", "Eng_B", "Eng_A"],
         "Status": ["เสร็จสิ้น", "กำลังดำเนินการ", "รอเริ่มงาน", "รอเริ่มงาน"],
         "Progress (%)": [100, 40, 0, 0],
-        "Start": [datetime(2026, 4, 1), datetime(2026, 4, 10), datetime(2026, 4, 20), datetime(2026, 4, 25)],
-        "End": [datetime(2026, 4, 9), datetime(2026, 4, 19), datetime(2026, 4, 24), datetime(2026, 5, 5)],
+        # คำนวณวันที่ให้อิงจากวันนี้
+        "Start": [today, today + timedelta(days=7), today + timedelta(days=14), today + timedelta(days=21)],
+        "End": [today + timedelta(days=6), today + timedelta(days=13), today + timedelta(days=20), today + timedelta(days=27)],
         "Photo": [None, None, None, None]
     })
 
@@ -85,7 +88,6 @@ else:
             for _, row in group_data.iterrows():
                 col_left, col_right = st.columns([1, 2])
                 with col_left:
-                    # ตรงนี้คือจุดแสดงรูปภาพ (หากมีไฟล์รูปจริง ให้ใส่ path ที่นี่)
                     st.image("https://via.placeholder.com/150", caption="ภาพถ่ายหน้างาน") 
                 with col_right:
                     st.write(f"**สถานะ:** {row['Status']}")
