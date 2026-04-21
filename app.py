@@ -20,12 +20,18 @@ if 'data' not in st.session_state:
         "Photo": [None, None, None, None]
     })
 
-# 3. Sidebar: ระบบ Login
+# 3. Sidebar: ระบบ Login (ปรับปรุง: เพิ่มตัวเลือกเริ่มต้น)
 with st.sidebar:
     st.title("🔐 เข้าสู่ระบบ")
-    user = st.selectbox("เลือกบทบาทผู้ใช้งาน", ["Manager", "Eng_A", "Eng_B"])
+    # เพิ่มตัวเลือก "--- โปรดเลือกบทบาท ---" เพื่อให้หน้า Update งานหายไปก่อน
+    role_options = ["--- โปรดเลือกบทบาท ---", "Manager", "Eng_A", "Eng_B"]
+    user = st.selectbox("เลือกบทบาทผู้ใช้งาน", role_options)
     st.write("---")
-    st.info(f"ผู้ใช้งานปัจจุบัน: **{user}**")
+    
+    if user != "--- โปรดเลือกบทบาท ---":
+        st.info(f"ผู้ใช้งานปัจจุบัน: **{user}**")
+    else:
+        st.warning("กรุณาเลือกบทบาทเพื่อเข้าใช้งานระบบ")
 
 st.title(f"🏗️ ระบบบริหารจัดการงานก่อสร้าง")
 
@@ -41,9 +47,8 @@ fig = px.timeline(st.session_state.data, x_start="Start", x_end="End", y="Task",
 fig.update_yaxes(autorange="reversed")
 st.plotly_chart(fig, use_container_width=True)
 
-# 6. ตารางจัดการงาน (จุดที่ปรับแก้: เพิ่ม num_rows="dynamic")
+# 6. ตารางจัดการงาน
 st.subheader("📋 ตารางแก้ไขและเพิ่มข้อมูลงาน")
-# เพิ่ม num_rows="dynamic" เพื่อให้มีปุ่มบวก (+) สำหรับเพิ่มแถวใหม่ได้
 edited_df = st.data_editor(st.session_state.data, use_container_width=True, num_rows="dynamic")
 
 if st.button("💾 บันทึกข้อมูลทั้งหมด"):
@@ -51,28 +56,32 @@ if st.button("💾 บันทึกข้อมูลทั้งหมด"):
     st.success("บันทึกข้อมูลเรียบร้อยแล้ว!")
     st.rerun()
 
-# 7. ฟอร์มอัปเดตงาน (สำหรับ Engineer)
+# 7. ฟอร์มอัปเดตงาน (ปรับปรุง: แสดงเฉพาะเมื่อเลือกบทบาทแล้ว)
 st.divider()
 st.subheader("✏️ อัปเดตงานที่รับผิดชอบ")
-my_tasks = st.session_state.data[st.session_state.data['PIC'] == user]
 
-if not my_tasks.empty:
-    with st.form("update_form"):
-        task_select = st.selectbox("เลือกชื่องานที่ต้องการอัปเดต", my_tasks['Task'].tolist())
-        new_progress = st.slider("ความคืบหน้า (%)", 0, 100, 20)
-        new_status = st.selectbox("สถานะปัจจุบัน", ["กำลังดำเนินการ", "ล่าช้า", "เสร็จสิ้น"])
-        uploaded_file = st.file_uploader("อัปโหลดรูปภาพผลงาน", type=['jpg', 'png', 'jpeg'])
-        
-        if st.form_submit_button("บันทึกรายงานความคืบหน้า"):
-            idx = st.session_state.data[st.session_state.data['Task'] == task_select].index[0]
-            st.session_state.data.at[idx, 'Progress (%)'] = new_progress
-            st.session_state.data.at[idx, 'Status'] = new_status
-            if uploaded_file:
-                st.session_state.data.at[idx, 'Photo'] = uploaded_file.name
-            st.success(f"บันทึกงาน '{task_select}' เรียบร้อย!")
-            st.rerun()
+if user == "--- โปรดเลือกบทบาท ---":
+    st.info("👆 โปรดเลือกบทบาทผู้ใช้งานในแถบด้านข้าง เพื่อเริ่มอัปเดตงาน")
 else:
-    st.warning("คุณไม่มีงานที่รับผิดชอบในระบบ ณ ขณะนี้")
+    my_tasks = st.session_state.data[st.session_state.data['PIC'] == user]
+
+    if not my_tasks.empty:
+        with st.form("update_form"):
+            task_select = st.selectbox("เลือกชื่องานที่ต้องการอัปเดต", my_tasks['Task'].tolist())
+            new_progress = st.slider("ความคืบหน้า (%)", 0, 100, 20)
+            new_status = st.selectbox("สถานะปัจจุบัน", ["กำลังดำเนินการ", "ล่าช้า", "เสร็จสิ้น"])
+            uploaded_file = st.file_uploader("อัปโหลดรูปภาพผลงาน", type=['jpg', 'png', 'jpeg'])
+            
+            if st.form_submit_button("บันทึกรายงานความคืบหน้า"):
+                idx = st.session_state.data[st.session_state.data['Task'] == task_select].index[0]
+                st.session_state.data.at[idx, 'Progress (%)'] = new_progress
+                st.session_state.data.at[idx, 'Status'] = new_status
+                if uploaded_file:
+                    st.session_state.data.at[idx, 'Photo'] = uploaded_file.name
+                st.success(f"บันทึกงาน '{task_select}' เรียบร้อย!")
+                st.rerun()
+    else:
+        st.warning("คุณไม่มีงานที่รับผิดชอบในระบบ ณ ขณะนี้")
 
 # 8. แสดงรูปผลงาน
 st.subheader("🖼️ คลังรูปภาพผลงาน")
