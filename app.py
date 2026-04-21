@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 # 1. ตั้งค่าหน้าจอ
 st.set_page_config(layout="wide", page_title="Construction Management System")
 
-# 2. Initialize Session State (ข้อมูลจะคงอยู่ขณะรันแอป)
+# 2. เริ่มต้น Session State
 if 'passwords' not in st.session_state:
     st.session_state.passwords = {"Manager": "1234", "Eng_A": "5555", "Eng_B": "9999"}
 
@@ -26,7 +26,7 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.current_role = None
 
-# 3. Sidebar (ระบบ Login และจัดการบัญชี)
+# 3. Sidebar: ระบบ Login และจัดการบัญชี
 with st.sidebar:
     st.title("🔐 ระบบจัดการ")
     
@@ -44,7 +44,7 @@ with st.sidebar:
     else:
         st.success(f"ล็อกอินเป็น: **{st.session_state.current_role}**")
         
-        # ฟังก์ชันเพิ่มวิศวกรใหม่ (เฉพาะ Manager)
+        # ฟังก์ชันสำหรับ Manager เท่านั้น
         if st.session_state.current_role == "Manager":
             with st.expander("➕ เพิ่มวิศวกรใหม่"):
                 new_user = st.text_input("ชื่อวิศวกร (ID)")
@@ -55,8 +55,9 @@ with st.sidebar:
                     else:
                         st.session_state.passwords[new_user] = new_pass
                         st.success(f"เพิ่ม {new_user} เรียบร้อย!")
+                        st.rerun()
         
-        # เปลี่ยนรหัสตัวเอง
+        # ฟังก์ชันเปลี่ยนรหัสผ่าน
         with st.expander("⚙️ เปลี่ยนรหัสผ่านของตัวเอง"):
             old_pass = st.text_input("รหัสผ่านเดิม", type="password")
             new_pass = st.text_input("รหัสผ่านใหม่", type="password")
@@ -72,9 +73,10 @@ with st.sidebar:
             st.session_state.current_role = None
             st.rerun()
 
-# 4. หน้าหลัก (แสดงตารางงานและกราฟตลอดเวลา)
+# 4. หน้าหลัก (Main Page)
 st.title(f"🏗️ ระบบบริหารจัดการงานก่อสร้าง")
 
+# แสดงผล Dashboard ให้ทุกคนเห็น
 col1, col2, col3 = st.columns(3)
 col1.metric("จำนวนงานทั้งหมด", len(st.session_state.data))
 col2.metric("ความคืบหน้าเฉลี่ย", f"{int(st.session_state.data['Progress (%)'].mean())}%")
@@ -85,9 +87,9 @@ fig = px.timeline(st.session_state.data, x_start="Start", x_end="End", y="Task",
 fig.update_yaxes(autorange="reversed")
 st.plotly_chart(fig, use_container_width=True)
 
-# ตารางงาน (แสดงให้ทุกคนเห็น แต่ถ้าไม่ใช่ Manager อาจจะ lock ไม่ให้แก้ไขได้)
-st.subheader("📋 ตารางข้อมูลงาน")
+st.subheader("📋 ตารางแก้ไขข้อมูลงาน")
 is_manager = st.session_state.current_role == "Manager"
+# Manager แก้ไขได้อิสระ ส่วนวิศวกรทำได้แค่ดู
 edited_df = st.data_editor(st.session_state.data, use_container_width=True, num_rows="dynamic", disabled=not is_manager)
 
 if is_manager and st.button("💾 บันทึกตาราง (เฉพาะ Manager)"):
@@ -103,12 +105,21 @@ if not st.session_state.authenticated:
     st.info("👈 โปรด Login เพื่ออัปเดตสถานะงานของคุณ")
 else:
     user = st.session_state.current_role
-    my_tasks = st.session_state.data[st.session_state.data['PIC'] == user]
+    
+    # Filter งานตามชื่อที่ Login
+    if user == "Manager":
+        my_tasks = st.session_state.data
+    else:
+        my_tasks = st.session_state.data[st.session_state.data['PIC'].astype(str).str.strip() == user.strip()]
 
     if not my_tasks.empty:
         with st.form("update_form"):
             task_select = st.selectbox("เลือกชื่องานที่ต้องการอัปเดต", my_tasks['Task'].tolist())
-            new_progress = st.slider("ความคืบหน้า (%)", 0, 100, 20)
+            
+            # ดึงค่าปัจจุบันมาโชว์
+            current_progress = int(st.session_state.data.loc[st.session_state.data['Task'] == task_select, 'Progress (%)'].values[0])
+            new_progress = st.slider("ความคืบหน้า (%)", 0, 100, current_progress)
+            
             new_status = st.selectbox("สถานะปัจจุบัน", ["กำลังดำเนินการ", "ล่าช้า", "เสร็จสิ้น"])
             uploaded_file = st.file_uploader("อัปโหลดรูปภาพผลงาน", type=['jpg', 'png', 'jpeg'])
             
@@ -121,7 +132,7 @@ else:
                 st.success(f"บันทึกงาน '{task_select}' เรียบร้อย!")
                 st.rerun()
     else:
-        st.warning("คุณไม่มีงานที่รับผิดชอบในระบบ ณ ขณะนี้")
+        st.warning(f"คุณ '{user}' ยังไม่มีงานที่ได้รับมอบหมายในระบบ ณ ขณะนี้")
 
 # 6. คลังรูปภาพ
 st.subheader("🖼️ คลังรูปภาพผลงาน")
@@ -129,5 +140,9 @@ df_with_photos = st.session_state.data[st.session_state.data['Photo'].notna()]
 if df_with_photos.empty:
     st.info("ยังไม่มีการอัปโหลดรูปภาพผลงาน")
 else:
-    # ... (โค้ดแสดงรูปภาพเหมือนเดิม)
-    pass
+    grouped = df_with_photos.groupby('Task')
+    for task_name, group_data in grouped:
+        with st.expander(f"📦 หมวดงาน: {task_name}", expanded=True):
+            for _, row in group_data.iterrows():
+                st.write(f"**สถานะ:** {row['Status']} | **ผู้รับผิดชอบ:** {row['PIC']}")
+                st.success(f"ไฟล์ที่แนบ: {row['Photo']}")
