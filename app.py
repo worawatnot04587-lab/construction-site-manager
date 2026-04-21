@@ -47,6 +47,7 @@ edited_df = st.data_editor(st.session_state.data, use_container_width=True)
 if st.button("💾 บันทึกข้อมูลทั้งหมด"):
     st.session_state.data = edited_df
     st.success("บันทึกข้อมูลเรียบร้อยแล้ว!")
+    st.rerun()
 
 # 7. ฟอร์มอัปเดตงาน (สำหรับ Engineer)
 st.divider()
@@ -71,15 +72,23 @@ if not my_tasks.empty:
 else:
     st.warning("คุณไม่มีงานที่รับผิดชอบในระบบ ณ ขณะนี้")
 
-# 8. แสดงรูปผลงาน
+# 8. แสดงรูปผลงาน (จัดกลุ่มตามหมวดงาน)
 st.subheader("🖼️ คลังรูปภาพผลงาน")
-cols = st.columns(3)
-count = 0
-for _, row in st.session_state.data.iterrows():
-    if row['Photo']:
-        with cols[count % 3]:
-            st.write(f"**งาน:** {row['Task']}")
-            st.info(f"ไฟล์: {row['Photo']}")
-        count += 1
-if count == 0:
-    st.caption("ยังไม่มีการอัปโหลดรูปภาพผลงาน")
+df_with_photos = st.session_state.data[st.session_state.data['Photo'].notna()]
+
+if df_with_photos.empty:
+    st.info("ยังไม่มีการอัปโหลดรูปภาพผลงานในขณะนี้")
+else:
+    grouped = df_with_photos.groupby('Task')
+    for task_name, group_data in grouped:
+        with st.expander(f"📦 หมวดงาน: {task_name}", expanded=True):
+            for _, row in group_data.iterrows():
+                col_left, col_right = st.columns([1, 2])
+                with col_left:
+                    # ตรงนี้คือจุดแสดงรูปภาพ (หากมีไฟล์รูปจริง ให้ใส่ path ที่นี่)
+                    st.image("https://via.placeholder.com/150", caption="ภาพถ่ายหน้างาน") 
+                with col_right:
+                    st.write(f"**สถานะ:** {row['Status']}")
+                    st.write(f"**ผู้รับผิดชอบ (PIC):** 👤 {row['PIC']}")
+                    st.success(f"ไฟล์ที่แนบ: {row['Photo']}")
+            st.divider()
