@@ -3,13 +3,20 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 
-# 1. ตั้งค่าหน้าจอ
+# 1. ตั้งค่ารหัสผ่าน (Config Passwords)
+# คุณสามารถเปลี่ยนรหัสผ่านได้ที่นี่
+PASSWORDS = {
+    "Manager": "1234",
+    "Eng_A": "5555",
+    "Eng_B": "9999"
+}
+
+# 2. ตั้งค่าหน้าจอ
 st.set_page_config(layout="wide", page_title="Construction Management System")
 
-# 2. ข้อมูลเริ่มต้น
-today = datetime.today()
-
+# 3. Initialize Session State
 if 'data' not in st.session_state:
+    today = datetime.today()
     st.session_state.data = pd.DataFrame({
         "Task": ["งานฐานราก", "งานหล่อเสา", "งานระบบไฟฟ้า", "งานสี"],
         "PIC": ["Manager", "Eng_A", "Eng_B", "Eng_A"],
@@ -20,34 +27,48 @@ if 'data' not in st.session_state:
         "Photo": [None, None, None, None]
     })
 
-# 3. Sidebar: ระบบ Login (ปรับปรุง: เพิ่มตัวเลือกเริ่มต้น)
+# สถานะการ Login
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+    st.session_state.current_role = None
+
+# 4. Sidebar: ระบบ Login (ปรับปรุงให้ใส่รหัสผ่าน)
 with st.sidebar:
     st.title("🔐 เข้าสู่ระบบ")
-    # เพิ่มตัวเลือก "--- โปรดเลือกบทบาท ---" เพื่อให้หน้า Update งานหายไปก่อน
-    role_options = ["--- โปรดเลือกบทบาท ---", "Manager", "Eng_A", "Eng_B"]
-    user = st.selectbox("เลือกบทบาทผู้ใช้งาน", role_options)
-    st.write("---")
     
-    if user != "--- โปรดเลือกบทบาท ---":
-        st.info(f"ผู้ใช้งานปัจจุบัน: **{user}**")
+    if not st.session_state.authenticated:
+        role = st.selectbox("เลือกบทบาทผู้ใช้งาน", ["Manager", "Eng_A", "Eng_B"])
+        password = st.text_input("รหัสผ่าน", type="password")
+        
+        if st.button("เข้าสู่ระบบ"):
+            if PASSWORDS.get(role) == password:
+                st.session_state.authenticated = True
+                st.session_state.current_role = role
+                st.rerun()
+            else:
+                st.error("รหัสผ่านไม่ถูกต้อง")
     else:
-        st.warning("กรุณาเลือกบทบาทเพื่อเข้าใช้งานระบบ")
+        st.info(f"ล็อกอินในฐานะ: **{st.session_state.current_role}**")
+        if st.button("ออกจากระบบ"):
+            st.session_state.authenticated = False
+            st.session_state.current_role = None
+            st.rerun()
 
 st.title(f"🏗️ ระบบบริหารจัดการงานก่อสร้าง")
 
-# 4. ส่วนแสดงผล Metrics
+# 5. ส่วนแสดงผล Metrics
 col1, col2, col3 = st.columns(3)
 col1.metric("จำนวนงานทั้งหมด", len(st.session_state.data))
 col2.metric("ความคืบหน้าเฉลี่ย", f"{int(st.session_state.data['Progress (%)'].mean())}%")
 col3.metric("สถานะโครงการ", "ปกติ")
 
-# 5. Gantt Chart
+# 6. Gantt Chart
 st.subheader("📅 แผนงานโครงการ (Gantt Chart)")
 fig = px.timeline(st.session_state.data, x_start="Start", x_end="End", y="Task", color="Status")
 fig.update_yaxes(autorange="reversed")
 st.plotly_chart(fig, use_container_width=True)
 
-# 6. ตารางจัดการงาน
+# 7. ตารางจัดการงาน
 st.subheader("📋 ตารางแก้ไขและเพิ่มข้อมูลงาน")
 edited_df = st.data_editor(st.session_state.data, use_container_width=True, num_rows="dynamic")
 
@@ -56,13 +77,14 @@ if st.button("💾 บันทึกข้อมูลทั้งหมด"):
     st.success("บันทึกข้อมูลเรียบร้อยแล้ว!")
     st.rerun()
 
-# 7. ฟอร์มอัปเดตงาน (ปรับปรุง: แสดงเฉพาะเมื่อเลือกบทบาทแล้ว)
+# 8. ฟอร์มอัปเดตงาน (จะแสดงต่อเมื่อ Login สำเร็จแล้วเท่านั้น)
 st.divider()
 st.subheader("✏️ อัปเดตงานที่รับผิดชอบ")
 
-if user == "--- โปรดเลือกบทบาท ---":
-    st.info("👆 โปรดเลือกบทบาทผู้ใช้งานในแถบด้านข้าง เพื่อเริ่มอัปเดตงาน")
+if not st.session_state.authenticated:
+    st.warning("⚠️ กรุณาเข้าสู่ระบบก่อนอัปเดตข้อมูล")
 else:
+    user = st.session_state.current_role
     my_tasks = st.session_state.data[st.session_state.data['PIC'] == user]
 
     if not my_tasks.empty:
@@ -81,9 +103,9 @@ else:
                 st.success(f"บันทึกงาน '{task_select}' เรียบร้อย!")
                 st.rerun()
     else:
-        st.warning("คุณไม่มีงานที่รับผิดชอบในระบบ ณ ขณะนี้")
+        st.write("คุณไม่มีงานที่รับผิดชอบในระบบ")
 
-# 8. แสดงรูปผลงาน
+# 9. แสดงรูปผลงาน
 st.subheader("🖼️ คลังรูปภาพผลงาน")
 df_with_photos = st.session_state.data[st.session_state.data['Photo'].notna()]
 if df_with_photos.empty:
